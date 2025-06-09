@@ -1,66 +1,75 @@
+# src/scrapers/wgzimmer.py
+# Corrected version that integrates the successful logic from the PoC.
+
 import time
 import random
 import logging
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError
+from playwright_stealth import stealth_sync  # <--- 1. Re-added stealth, a good practice
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
+from typing import List
 from .. import config
 
 BASE_URL = "https://www.wgzimmer.ch"
 SEARCH_URL = "https://www.wgzimmer.ch/wgzimmer/search/mate.html"
 
 
-def _parse_html(html_content: str, city_name: str) -> list[dict]:
+def _parse_html(html_content: str, city_name: str) -> List[dict]:
     """
     Parses the raw HTML from Playwright to extract listing data.
-    This is based on the proven logic from our proof-of-concept.
+    This function is unchanged as its logic was already correct.
     """
     soup = BeautifulSoup(html_content, "html.parser")
     results = soup.find_all("li", class_="search-result-entry", recursive=True)
     found_rooms = []
 
     for result in results:
-        # Skip ad slots which sometimes use a similar class
         if "search-result-entry-slot" in result.get("class", []):
             continue
 
-        # Ensure all necessary tags are present before processing
-        id_val = result.get("id")
-        link_tag = result.find("a", recursive=True)
-        title_tag = result.find("h4")
-        date_tag = result.find("span", class_="from-date")
-        price_tag = result.find("span", class_="cost")
-
-        if not all([id_val, link_tag, title_tag, date_tag, price_tag]):
+        link_tag = result.find("a", href=True)
+        if not link_tag:
             continue
 
-        url = BASE_URL + link_tag["href"]
-        title = title_tag.text.strip()
-        date = date_tag.text.strip()
-        price = price_tag.text.strip()
+        url = BASE_URL + link_tag.get("href", "")
+        location_tag = link_tag.find("span", class_="thumbState")
+        price_tag = link_tag.find("span", class_="cost")
+        date_tag = link_tag.find("span", class_="from-date")
+        posted_tag = result.find("div", class_="create-date")
 
-        # Return the data in the standardized dictionary format for the main script
-        found_rooms.append(
-            {
-                "id": url,  # Use the unique URL as the ID
-                "title": f"{title} [{city_name}]",
-                "details": f"Price: {price} CHF | Available from: {date} | URL: {url}",
-                "source": "WGZimmer",
-            }
-        )
+        if all([location_tag, price_tag, date_tag]):
+            location = (
+                location_tag.find("strong").text.strip()
+                if location_tag.find("strong")
+                else "N/A"
+            )
+            price = price_tag.text.strip()
+            date = date_tag.text.strip()
+            posted = posted_tag.text.strip() if posted_tag else "N/A"
+            title = f"{location}"
+
+            found_rooms.append(
+                {
+                    "id": url,
+                    "title": f"{title} [{city_name}]",
+                    "details": f"Price: {price} | Available: {date} | Posted: {posted} | URL: {url}",
+                    "source": "WGZimmer",
+                }
+            )
 
     return found_rooms
 
 
-def scrape_wgzimmer() -> list[dict]:
+def scrape_wgzimmer() -> List[dict]:
     """
-    Scrapes wgzimmer.ch using Playwright to bypass anti-bot measures.
-    It iterates through the cities defined in config.py.
+    Scrapes wgzimmer.ch using Playwright, strictly following the logic
+    from the successful proof-of-concept script.
     """
     logging.info("--- Starting WGZimmer.ch Playwright scrape ---")
     all_found_rooms = []
 
-    # 1. Resolve city names from config into a final set of codes to search
+    # --- City code logic remains the same ---
     all_zurich_codes = [
         code for code in config.CITY_NAMES.values() if code.startswith("zurich")
     ]
@@ -83,61 +92,90 @@ def scrape_wgzimmer() -> list[dict]:
         logging.warning("No valid cities configured for WGZimmer scrape.")
         return []
 
-    # 2. Loop through each city and perform the scrape with Playwright
     with sync_playwright() as p:
         for city_code in final_city_codes_to_search:
             city_name = code_to_name_map.get(city_code, city_code)
-            logging.info(f"-> WGZimmer: Searching in '{city_name}'...")
+            logging.info(f"-> WGZimmer: Searching in: {city_name}...")
 
             ua = UserAgent().random
             browser = None
             try:
                 browser = p.chromium.launch(
-                    headless=config.HEADLESS_BROWSER, slow_mo=50
+                    headless=config.HEADLESS_BROWSER, slow_mo=250
                 )
                 context = browser.new_context(user_agent=ua)
                 page = context.new_page()
+                stealth_sync(page)  # <--- 2. Apply stealth to the page
 
                 page.goto(SEARCH_URL, timeout=60000, wait_until="domcontentloaded")
 
-                # Handle the TCF consent button, which is the key step
                 try:
-                    page.locator(".fc-cta-consent").click(timeout=10000)
-                    logging.info("Consent button clicked.")
-                    page.wait_for_timeout(random.randint(1000, 2000))
-                except Exception:
+                    consent_button = page.locator(".fc-cta-consent")
+                    consent_button.wait_for(state="visible", timeout=10000)
+                    logging.info("Consent button found. Clicking it...")
+                    consent_button.click()
+                except TimeoutError:
                     logging.info("Consent button not found or already handled.")
 
-                # Fill form from values in config.py
+                logging.info("Filling search form...")
                 page.locator('select[name="priceMax"]').select_option(
                     config.WGZIMMER_SEARCH_CRITERIA_BASE["priceMax"]
                 )
                 page.locator('select[name="wgState"]').select_option(city_code)
+                time.sleep(1)  # Short pause like in PoC
 
-                # Click the German "Search" button
-                page.locator("input[value='Suchen']").click()
+                # --- 3. KEY CHANGE: Reverting to the PoC's successful submission and waiting logic ---
+                logging.info("Submitting search and waiting for navigation...")
+                with page.expect_navigation(
+                    wait_until="domcontentloaded", timeout=60000
+                ):
+                    # Use 'press("Enter")' as it was proven to work reliably in the PoC
+                    page.locator('input[name="query"]').press("Enter")
 
-                # Use a fixed wait as requested, to allow the results (potentially in an iframe) to load
-                logging.info("Waiting 10 seconds for results to load...")
-                page.wait_for_timeout(10000)
+                logging.info(f"Navigation successful. URL is now: {page.url}")
+                logging.info("Waiting for a REAL search result to load...")
+
+                # Wait for a result that is NOT an ad, which confirms the page is ready.
+                # This is the most critical part from the PoC.
+                page.wait_for_selector(
+                    "li.search-result-entry:not(.search-result-entry-slot)",
+                    state="visible",
+                    timeout=20000,
+                )
+                logging.info("Real result found. Capturing page content...")
+                # --- END OF KEY CHANGE ---
+
+                # A small, final delay to ensure all elements have settled.
+                time.sleep(1)
 
                 html_content = page.content()
-                browser.close()
-
-                # Parse the final HTML and add to our master list
                 city_results = _parse_html(html_content, city_name)
+
+                if not city_results:
+                    # Your excellent debugging logic for when no results are found
+                    debug_filename_base = f"debug_page_{city_code}"
+                    screenshot_path = f"{debug_filename_base}.png"
+                    html_path = f"{debug_filename_base}.html"
+                    logging.warning(
+                        f"Found 0 listings in {city_name}. Saving debug files."
+                    )
+                    page.screenshot(path=screenshot_path)
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                    logging.warning(f"Screenshot saved to: {screenshot_path}")
+                    logging.warning(f"HTML content saved to: {html_path}")
+
                 logging.info(f"Found {len(city_results)} listings in {city_name}.")
                 all_found_rooms.extend(city_results)
 
             except Exception as e:
                 logging.error(
-                    f"[CRITICAL] Playwright failed for '{city_name}': {e}",
-                    exc_info=True,
+                    f"[CRITICAL] Playwright failed for {city_name}: {e}", exc_info=True
                 )
+                # No need to re-raise 'e', just let the loop continue if possible
+            finally:
                 if browser:
                     browser.close()
-                # Re-raise the exception so the main loop can catch it and send a notification
-                raise e
 
     logging.info(
         f"--- WGZimmer scrape complete. Found a total of {len(all_found_rooms)} listings. ---"

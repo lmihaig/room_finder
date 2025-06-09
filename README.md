@@ -1,6 +1,6 @@
 # WOKO New Room Notifier
 
-_Python script sending push notifications whenever a new room is published on the WOKO (student association for housing in Zurich) website._
+_Python script sending push notifications whenever a new room is published on the WOKO (student association for housing in Zurich) website or on wgzimmer._
 
 <p align="center">
   <img src="notification_sample.jpg" width="450" title="Sample Notifications">
@@ -8,7 +8,7 @@ _Python script sending push notifications whenever a new room is published on th
 
 ## What this Script Does
 
-This script continuously fetches the WOKO website for rooms available in Zurich. Whenever a new room is available, the script sends a push notification to phones properly set-up (in a subscriber / publisher fashion).
+This script continuously fetches the WOKO website/wgzimmer for rooms available in Zurich. Whenever a new room is available, the script sends a push notification to phones properly set-up (in a subscriber / publisher fashion).
 
 Assuming you already have an available VM on the cloud (if you don't, get one ASAP), deploying this script requires ~5 mins.
 
@@ -16,10 +16,10 @@ Assuming you already have an available VM on the cloud (if you don't, get one AS
 
 Steps for running the script locally are:
 
-1. Install `bs4` and `lxml` with `pip3 install bs4 lxml` or `pip3 install -r requirements.txt`.
+1. `pip3 install -r requirements.txt`.
 2. Install the push-notification app companion, [**Ntfy.sh**](https://ntfy.sh/). The Android app is [here](https://play.google.com/store/apps/details?id=io.heckel.ntfy).
 3. Open the **Ntfy.sh** app, and add subscribe to the topic "_cazare_woko_" (or whatever string you replaced it with at the top of [scraper.py](./scraper.py)).
-4. Run the `scraper.py` file, with `python3 scraper.py`.
+4. Run the `run.sh` script
 5. ???
 6. Enjoy
 
@@ -32,8 +32,4 @@ As it's really tiny, any VM will work, including the free ones given by AWS or O
 1. Create the VM.
 2. SSH into the VM.
 3. Clone the repository `git clone https://github.com/theodormoroianu/WOKO_New_Room_Notification`.
-4. Install `bs4` and `lxml` by running `pip3 install bs4 lxml`.
-4. Open a `TMUX` shell. This ensures the script keeps running even after closing the terminal: `tmux new -s "scraper"`.
-5. Move into the repository, and run the scraper: `python3 scraper.py`.
-6. Exit from the tmux shell, by either closing the terminal, or pressing `CTRL+B` followed by `D`. DO NOT type `CTRL+C`, as it will terminate the python app.
-7. For attaching back to the TMUX shell, simply type in the SSH window `tmux attach -t "scraper"`.
+4. Install `pip3 install -r requirements.txt`

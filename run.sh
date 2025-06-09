@@ -13,14 +13,37 @@ if ! tmux has-session -t $SESSION_NAME 2>/dev/null; then
   # Create a new detached tmux session with the specified name
   tmux new-session -d -s $SESSION_NAME
 
-  # Send the commands to the new session to change directory and run the Python script.
+  # --- New, More Robust Startup Sequence ---
+  # This version now also ensures Playwright's browsers are installed.
+  STARTUP_COMMAND="cd room_finder && \
+    echo '--- Setting up environment ---' && \
+    if [ ! -d 'venv' ]; then \
+        echo 'Virtual environment not found. Attempting to create...' && \
+        python3 -m venv venv; \
+    fi && \
+    if [ -f 'venv/bin/activate' ]; then \
+        echo 'Activating virtual environment and installing dependencies...' && \
+        source venv/bin/activate && \
+        pip install -r ../requirements.txt && \
+        echo '--- Ensuring Playwright browsers are installed ---' && \
+        playwright install && \
+        echo '--- Setup complete. Running scraper ---' && \
+        python3 run.py; \
+    else \
+        echo '' && \
+        echo '[ERROR] Failed to create or find the virtual environment!' && \
+        echo 'Please ensure the python3-venv package is installed on your system.' && \
+        echo 'Example for Ubuntu/Debian: sudo apt update && sudo apt install python3.8-venv' && \
+        echo 'Then, try running this script again.'; \
+    fi"
+
+  # Send the entire multi-line command to the new session.
   # The 'C-m' at the end simulates pressing the Enter key.
-  # NOTE: It's crucial that the 'room_finder' directory is in the same directory as this script.
-  tmux send-keys -t $SESSION_NAME "cd room_finder && python3 run.py" C-m
+  tmux send-keys -t $SESSION_NAME "$STARTUP_COMMAND" C-m
 
   echo ""
-  echo "✅ Scraper started successfully inside tmux session '$SESSION_NAME'."
-  echo "The script is now running in the background."
+  echo "✅ Scraper startup sequence initiated inside tmux session '$SESSION_NAME'."
+  echo "The script is now setting up the environment and will start running."
 
 else
   # If the session already exists, notify the user.

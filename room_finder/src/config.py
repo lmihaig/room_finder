@@ -3,7 +3,7 @@ import logging
 NTFY_CHANNEL = "https://ntfy.sh/cazare_woko"
 
 WOKO_WAIT_TIME = 300
-WGZIMMER_WAIT_TIME = 3600
+WGZIMMER_WAIT_TIME = 1800
 HEARTBEAT_EVERY = 60 * 60 * 12
 
 IGNORE_SUBLET = True

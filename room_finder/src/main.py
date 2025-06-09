@@ -5,8 +5,8 @@ import logging
 from . import config
 from .logging_config import setup_logging
 from .notifications import send_notification
-from .scrapers.woko_scraper import scrape_woko
-from .scrapers.wgzimmer_scraper import scrape_wgzimmer
+from .scrapers.woko import scrape_woko
+from .scrapers.wgzimmer import scrape_wgzimmer
 
 
 def process_listings(listings: list, listed_ids: set):
