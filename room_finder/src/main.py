@@ -7,28 +7,34 @@ from .logging_config import setup_logging
 from .notifications import send_notification
 from .scrapers.woko import scrape_woko
 from .scrapers.wgzimmer import scrape_wgzimmer
+from . import database  # <-- Import the new database module
 
 
-def process_listings(listings: list, listed_ids: set):
+def process_listings(listings: list):
     """
-    Checks a list of scraped items against the set of already seen IDs,
-    sends notifications for new items, and returns the set of newly added IDs.
+    Checks a list of scraped items against the database, sends notifications
+    for new items, and adds them to the database.
     """
-    newly_added_ids = set()
     if not listings:
-        return newly_added_ids
+        return
 
-    new_listings = [item for item in listings if item["id"] not in listed_ids]
+    new_listings_found = 0
+    for item in listings:
+        # Check against the database if the listing is new
+        if database.is_listing_new(item["id"]):
+            new_listings_found += 1
+            logging.info(f"New listing found: {item['title']}")
 
-    if new_listings:
-        logging.info(f"Found {len(new_listings)} new listings!")
-        for item in new_listings:
+            # The sublet filter is now primarily handled in the WOKO scraper,
+            # but this serves as a good final check.
             if (
                 item["source"] == "WOKO"
                 and config.IGNORE_SUBLET
                 and "Sublet" in item["title"]
             ):
                 logging.info(f"Ignoring WOKO sublet: {item['title']}")
+                # Add to DB anyway to prevent re-checking
+                database.add_listing(item["id"], item["source"])
                 continue
 
             logging.info(f"Notifying for: {item['title']}")
@@ -38,19 +44,23 @@ def process_listings(listings: list, listed_ids: set):
                 item["details"],
                 tags=tag,
             )
-            newly_added_ids.add(item["id"])
+
+            # Add the new listing ID to the database so it's not sent again
+            database.add_listing(item["id"], item["source"])
+
+    if new_listings_found > 0:
+        logging.info(f"Processed {new_listings_found} new listings in this batch.")
     else:
         logging.info("No new listings found in this batch.")
-
-    return newly_added_ids
 
 
 def main():
     """
     Main execution loop to run the scrapers on their individual timers.
     """
-    # Setup logging first
+    # Setup logging and database first
     setup_logging()
+    database.initialize_database()  # <-- Initialize the database on startup
 
     listed_ids = set()
     last_woko_scrape_time = 0
@@ -70,9 +80,9 @@ def main():
         # --- WOKO Scraper Schedule ---
         if now - last_woko_scrape_time > config.WOKO_WAIT_TIME:
             try:
+                logging.info("Running WOKO scraper...")
                 woko_listings = scrape_woko()
-                new_ids = process_listings(woko_listings, listed_ids)
-                listed_ids.update(new_ids)
+                process_listings(woko_listings)  # <-- Process using the DB
             except Exception as e:
                 logging.critical("WOKO scraper failed catastrophically!", exc_info=True)
                 send_notification(
@@ -86,9 +96,9 @@ def main():
         # --- WGZimmer Scraper Schedule ---
         if now - last_wgzimmer_scrape_time > config.WGZIMMER_WAIT_TIME:
             try:
+                logging.info("Running WGZimmer scraper...")
                 wgzimmer_listings = scrape_wgzimmer()
-                new_ids = process_listings(wgzimmer_listings, listed_ids)
-                listed_ids.update(new_ids)
+                process_listings(wgzimmer_listings)  # <-- Process using the DB
             except Exception as e:
                 logging.critical(
                     "WGZimmer scraper failed catastrophically!", exc_info=True

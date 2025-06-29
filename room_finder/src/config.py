@@ -1,19 +1,42 @@
 import logging
+import os
 
-NTFY_CHANNEL = "https://ntfy.sh/cazare_woko"
+NTFY_CHANNEL = "https://ntfy.sh/room_finder"
 
 WOKO_WAIT_TIME = 300
 WGZIMMER_WAIT_TIME = 1800
-HEARTBEAT_EVERY = 60 * 60 * 12
+HEARTBEAT_EVERY = 3600
 
 IGNORE_SUBLET = True
+
+DATABASE_PATH = "/app/data/listings.db"
+
+# ------------------------------------------------------------------------------
+# >> EDIT THIS LIST <<
+# Add or remove cities you want to search.
+# - Use the special keyword "Zurich (ALL)" to include all Zurich regions automatically.
+# - Otherwise, names MUST BE exactly as they appear as keys in the CITY_NAMES dictionary.
+CITIES_TO_SEARCH_BY_NAME = [
+    "Zurich (ALL)",
+]
+# ------------------------------------------------------------------------------
+
+# Base search criteria. The 'state' (city) will be added from the list above during the scrape.
+WGZIMMER_SEARCH_CRITERIA_BASE = {
+    "priceMin": "200",
+    "priceMax": "750",
+    "permanent": "true" if IGNORE_SUBLET else "all",
+    "student": "none",
+    "orderBy": "@sortDate",
+    "orderDir": "descending",
+    "startSearchMate": "true",
+    "start": "0",
+}
+
+
+# ------------------------------------------------------------------------------
+# DON'T SCREW WITH THESE
 HEADLESS_BROWSER = True
-
-
-LOG_FILE_PATH = "scraper.log"
-LOG_MAX_BYTES = 5 * 1024 * 1024
-LOG_BACKUP_COUNT = 3
-
 
 WOKO_URL = "https://www.woko.ch/en/zimmer-in-zuerich"
 WGZIMMER_SEARCH_URL = "https://www.wgzimmer.ch/en/wgzimmer/search/mate.html"
@@ -24,7 +47,6 @@ WGZIMMER_HEADERS = {
     "Referer": "https://www.wgzimmer.ch/en/wgzimmer/search/mate.html",
     "X-Requested-With": "XMLHttpRequest",
 }
-
 
 CITY_NAMES = {
     "Aargau": "aargau",
@@ -86,27 +108,4 @@ CITY_NAMES = {
     "Zurich (Unterland, Weinland, Limmattal)": "zurich",
     "Zürich (Oberland, Glattal)": "zurich-oberland",
     "Liechtenstein": "liechtenstein",
-}
-
-# ------------------------------------------------------------------------------
-# >> EDIT THIS LIST <<
-# Add or remove cities you want to search.
-# - Use the special keyword "Zurich (ALL)" to include all Zurich regions automatically.
-# - Otherwise, names MUST BE exactly as they appear as keys in the CITY_NAMES dictionary.
-CITIES_TO_SEARCH_BY_NAME = [
-    "Zurich (ALL)",
-]
-# ------------------------------------------------------------------------------
-
-
-# Base search criteria. The 'state' (city) will be added from the list above during the scrape.
-WGZIMMER_SEARCH_CRITERIA_BASE = {
-    "priceMin": "200",
-    "priceMax": "750",
-    "permanent": "true" if IGNORE_SUBLET else "all",
-    "student": "none",
-    "orderBy": "@sortDate",
-    "orderDir": "descending",
-    "startSearchMate": "true",
-    "start": "0",
 }

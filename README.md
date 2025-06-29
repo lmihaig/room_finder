@@ -1,35 +1,65 @@
-# WOKO New Room Notifier
+# Zurich Room Finder & Notifier
 
-_Python script sending push notifications whenever a new room is published on the WOKO (student association for housing in Zurich) website or on wgzimmer._
+A 24/7 monitor for new room listings on WOKO and WGZimmer.ch. Get instant notifications to be one of the first to apply.
 
-<p align="center">
-  <img src="notification_sample.jpg" width="450" title="Sample Notifications">
-</p>
+##### IMPORTANT: this tool does not automatically apply for you
 
-## What this Script Does
+## Features
 
-This script continuously fetches the WOKO website/wgzimmer for rooms available in Zurich. Whenever a new room is available, the script sends a push notification to phones properly set-up (in a subscriber / publisher fashion).
+- **Constant Monitoring**: Runs 24/7, checking for new rooms every few minutes (configurable).
+- **Instant Notifications**: Uses the free [ntfy.sh](https://ntfy.sh/) service for alerts.
+- **Smart Memory**: Remembers sent listings to prevent duplicates.
+- **Private**: Runs locally; your search is your own.
 
-Assuming you already have an available VM on the cloud (if you don't, get one ASAP), deploying this script requires ~5 mins.
+---
 
-## Running the Script
+## How to Run
 
-Steps for running the script locally are:
+### Prerequisites
 
-1. `pip3 install -r requirements.txt`.
-2. Install the push-notification app companion, [**Ntfy.sh**](https://ntfy.sh/). The Android app is [here](https://play.google.com/store/apps/details?id=io.heckel.ntfy).
-3. Open the **Ntfy.sh** app, and add subscribe to the topic "_cazare_woko_" (or whatever string you replaced it with at the top of [scraper.py](./scraper.py)).
-4. Run the `run.sh` script
-5. ???
-6. Enjoy
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) must be installed and running.
 
-## Running the script on the cloud
+### Step 1: Configure Notifications
 
-I highly recommend running the script on a cloud VM. This ensures the script runs 100% of the time.
+1. **Choose a private topic name** on [ntfy.sh](https://ntfy.sh/) (e.g., `my-zurich-hunt-a5b7c`).
+2. **Subscribe to your topic** in the ntfy mobile/desktop app.
+3. **Edit the config file**: In `room_finder/src/config.py`, find the `NTFY_CHANNEL` line and replace `room_finder` with your chosen topic name.
 
-As it's really tiny, any VM will work, including the free ones given by AWS or Oracle Cloud (I ran this script on an Oracle Cloud instance with one CPU and 1GB of RAM). The steps to do so are:
+    ```python
+    # Before
+    NTFY_CHANNEL = "https://ntfy.sh/room_finder"
+    
+    # After
+    NTFY_CHANNEL = "https://ntfy.sh/my-zurich-hunt-a5b7c"
+    ```
 
-1. Create the VM.
-2. SSH into the VM.
-3. Clone the repository `git clone https://github.com/theodormoroianu/WOKO_New_Room_Notification`.
-4. Install `pip3 install -r requirements.txt`
+4. You can also adjust `CITIES_TO_SEARCH_BY_NAME` and `WGZIMMER_SEARCH_CRITERIA_BASE` in the same file to narrow your search.
+
+### Step 2: Start the Service
+
+1. Open a terminal in the project's root directory.
+2. Run the command:
+
+    ```bash
+    docker compose up -d --build
+    ```
+
+    The service will build and start running in the background.
+
+---
+
+## Managing the Service
+
+- **Check Status (View Logs):**
+
+    ```bash
+    docker compose logs -f
+    ```
+
+    *(Press `Ctrl+C` to stop viewing logs without stopping the service.)*
+
+- **Stop the Service:**
+
+    ```bash
+    docker compose down
+    ```

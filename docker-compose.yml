@@ -1,0 +1,15 @@
+version: "3.3"
+
+services:
+  room-finder:
+    build: .
+    container_name: room-finder-service
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
